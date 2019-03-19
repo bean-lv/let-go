@@ -1,0 +1,5 @@
+package letgo
+
+func letgo() {
+
+}
