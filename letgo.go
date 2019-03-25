@@ -1,5 +1,4 @@
 package letgo
 
-func letgo() {
-
+type Letgo struct {
 }
