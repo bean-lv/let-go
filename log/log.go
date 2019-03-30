@@ -12,8 +12,14 @@ type Logger interface {
 type myLogger struct {
 }
 
-func NewLogger() Logger {
+func New() Logger {
 	return &myLogger{}
+}
+
+func Default() Logger {
+	logger := New()
+
+	return logger
 }
 
 func (l *myLogger) Trace(i ...interface{}) {}

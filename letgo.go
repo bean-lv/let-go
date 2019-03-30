@@ -1,4 +1,11 @@
 package letgo
 
-type Letgo struct {
+type Letgo interface {
+}
+
+type myLetgo struct {
+}
+
+func init() {
+
 }
