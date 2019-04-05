@@ -1,5 +1,10 @@
 package log
 
+const (
+	AdapterName_File      = "file"
+	AdapterName_MultiFile = "multifile"
+)
+
 type Level int
 
 const (

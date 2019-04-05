@@ -1,30 +1,45 @@
 package log
 
+import (
+	"fmt"
+)
+
 type Logger interface {
-	Trace(...interface{})
-	Debug(...interface{})
-	Info(...interface{})
-	Warn(...interface{})
-	Error(...interface{})
-	Fatal(...interface{})
+	SetLogger(adapterName string, config ...string) error
+
+	Trace(i ...interface{})
+	Debug(i ...interface{})
+	Info(i ...interface{})
+	Warn(i ...interface{})
+	Error(i ...interface{})
+	Fatal(i ...interface{})
 }
 
-type myLogger struct {
+var Log Logger
+
+func New(adapterName string) (Logger, error) {
+	adapter, ok := adapters[adapterName]
+	if !ok {
+		return nil, genError(fmt.Sprintf("Unknown adapter name: %s", adapterName))
+	}
+	return adapter, nil
 }
 
-func New() Logger {
-	return &myLogger{}
+func Default() (err error) {
+	Log, err = New(AdapterName_File)
+	return err
 }
 
-func Default() Logger {
-	logger := New()
+var adapters = make(map[string]Logger)
 
-	return logger
+func Register(adapterName string, adapter Logger) {
+	if adapter == nil {
+		panic(genError("register logger is nil"))
+	}
+
+	if _, ok := adapters[adapterName]; ok {
+		panic(genError(fmt.Sprintf("%s has registed", adapterName)))
+	}
+
+	adapters[adapterName] = adapter
 }
-
-func (l *myLogger) Trace(i ...interface{}) {}
-func (l *myLogger) Debug(i ...interface{}) {}
-func (l *myLogger) Info(i ...interface{})  {}
-func (l *myLogger) Warn(i ...interface{})  {}
-func (l *myLogger) Error(i ...interface{}) {}
-func (l *myLogger) Fatal(i ...interface{}) {}
