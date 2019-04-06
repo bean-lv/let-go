@@ -6,6 +6,20 @@ import (
 )
 
 func main() {
+	testLog()
+	// testConfig()
+}
+
+func testLog() {
+	msg := "This is a test message."
+	err := letgo.DefaultLogger()
+	if err != nil {
+		panic(err)
+	}
+	letgo.Logger.Error(msg)
+}
+
+func testConfig() {
 	filename := "conf/conf.conf"
 	err := letgo.DefaultConfig(filename)
 	if err != nil {

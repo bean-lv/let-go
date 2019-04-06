@@ -5,14 +5,17 @@ import (
 )
 
 type Logger interface {
-	SetLogger(adapterName string, config ...string) error
+	Init(jsonConfig string) error
 
-	Trace(i ...interface{})
-	Debug(i ...interface{})
-	Info(i ...interface{})
-	Warn(i ...interface{})
-	Error(i ...interface{})
-	Fatal(i ...interface{})
+	Trace(f interface{}, args ...interface{})
+	Debug(f interface{}, args ...interface{})
+	Info(f interface{}, args ...interface{})
+	Status(f interface{}, args ...interface{})
+	Notice(f interface{}, args ...interface{})
+	Warn(f interface{}, args ...interface{})
+	Error(f interface{}, args ...interface{})
+	Fatal(f interface{}, args ...interface{})
+	Crash(f interface{}, args ...interface{})
 }
 
 var Log Logger
@@ -27,6 +30,7 @@ func New(adapterName string) (Logger, error) {
 
 func Default() (err error) {
 	Log, err = New(AdapterName_File)
+	Log.Init("")
 	return err
 }
 
