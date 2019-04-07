@@ -20,3 +20,5 @@ const (
 )
 
 var levelPrefix = [LevelCrash]string{"[T]", "[D]", "[I]", "[S]", "[N]", "[W]", "[E]", "[F]", "[C]"}
+
+var levelNames = [LevelCrash]string{"trace", "debug", "info", "status", "notice", "warn", "error", "fatal", "crash"}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -33,11 +34,13 @@ type FileLogger struct {
 
 func newFileLogger() Logger {
 	return &FileLogger{
-		folder: "log",
-		suffix: ".log",
-		daily:  true,
-		delete: 30,
-		level:  LevelInfo,
+		folder:      "log",
+		suffix:      ".log",
+		daily:       true,
+		delete:      30,
+		level:       LevelInfo,
+		enableDepth: true,
+		callerDepth: 3,
 	}
 }
 
@@ -61,26 +64,6 @@ func (l *FileLogger) Init(jsonConfig string) error {
 	if l.enableDepth && l.callerDepth == 0 {
 		l.callerDepth = 1
 	}
-
-	err := l.initNewFile()
-
-	return err
-}
-
-func (l *FileLogger) initNewFile() error {
-	err := os.MkdirAll(l.folder, os.ModePerm)
-	if err != nil {
-		return genError(fmt.Sprintf("make dir %s error: %v", l.folder, err))
-	}
-	now := time.Now()
-
-	filename := l.getFilename(now)
-	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE, os.ModePerm)
-	if err != nil {
-		return genError(fmt.Sprintf("open file %s error: %v", filename, err))
-	}
-	l.fileWriter = f
-	l.openDate = getDate(now)
 
 	return nil
 }
@@ -165,10 +148,16 @@ func (l *FileLogger) writeMsg(lvl Level, msg string, when time.Time) {
 
 	l.checkFileWriter(when)
 
+	if l.dev {
+		fmt.Println(msg)
+	}
 	l.fileWriter.WriteString(msg)
 }
 
 func (l *FileLogger) checkFileWriter(when time.Time) {
+	if l.fileWriter == nil {
+		l.initNewFile()
+	}
 	if !l.daily {
 		return
 	}
@@ -185,6 +174,24 @@ func (l *FileLogger) checkFileWriter(when time.Time) {
 		go l.handleExpireFiles(when)
 	}
 	return
+}
+
+func (l *FileLogger) initNewFile() error {
+	err := os.MkdirAll(l.folder, os.ModePerm)
+	if err != nil {
+		return genError(fmt.Sprintf("make dir %s error: %v", l.folder, err))
+	}
+	now := time.Now()
+
+	filename := l.getFilename(now)
+	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE, os.ModePerm)
+	if err != nil {
+		return genError(fmt.Sprintf("open file %s error: %v", filename, err))
+	}
+	l.fileWriter = f
+	l.openDate = getDate(now)
+
+	return nil
 }
 
 func (l *FileLogger) handleExpireFiles(when time.Time) {
@@ -217,7 +224,14 @@ func (l *FileLogger) getFilename(when time.Time) string {
 func (l *FileLogger) formatLevelMsg(lvl Level, msg string, when time.Time) string {
 	from := ""
 	if l.enableDepth {
-
+		fmt.Println(l.callerDepth)
+		_, file, line, ok := runtime.Caller(l.callerDepth)
+		if !ok {
+			file = "Unknow file"
+			line = 0
+		}
+		_, filename := path.Split(file)
+		from = fmt.Sprintf("[%s: %d] ", filename, line)
 	}
 	msg = fmt.Sprintf("%s: %s %s%s\n", formatMsgTime(when), levelPrefix[lvl-1], from, msg)
 	return msg
