@@ -17,6 +17,14 @@ func testLog() {
 		panic(err)
 	}
 	letgo.Logger.Error(msg)
+	letgo.Logger.Fatal(msg)
+	letgo.Logger.Crash(msg)
+	letgo.Logger.Warn(msg)
+	letgo.Logger.Info(msg)
+	letgo.Logger.Notice(msg)
+	letgo.Logger.Status(msg)
+	letgo.Logger.Debug(msg)
+	letgo.Logger.Trace(msg)
 }
 
 func testConfig() {

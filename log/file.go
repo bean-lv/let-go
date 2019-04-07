@@ -219,7 +219,7 @@ func (l *FileLogger) formatLevelMsg(lvl Level, msg string, when time.Time) strin
 	if l.enableDepth {
 
 	}
-	msg = fmt.Sprintf("%s: %s %s%s\n", formatMsgTime(when), levelPrefix[lvl], from, msg)
+	msg = fmt.Sprintf("%s: %s %s%s\n", formatMsgTime(when), levelPrefix[lvl-1], from, msg)
 	return msg
 }
 
