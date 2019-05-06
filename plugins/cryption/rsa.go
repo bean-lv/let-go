@@ -20,12 +20,167 @@ const (
 	// RSA_ALGORITHM_SIGN = crypto.SHA256
 )
 
-type XRsa struct {
+type RSA interface {
+	PublicEncrypt(data string) (string, error)
+	PrivateDecrypt(encrypted string) (string, error)
+	// PrivateEncrypt(data string) (string, error)
+	// PublicDecrypt(encrypted string) (string, error)
+	Sign(data string) (string, error)
+	Verify(data string, sign string) error
+}
+
+type xRsa struct {
 	publicKey  *rsa.PublicKey
 	privateKey *rsa.PrivateKey
 }
 
-func CreateKeys(publicKeyWriter, privateKeyWriter io.Writer, keyLength int) error {
+var XRSA RSA
+
+func InitRSA(publicKey, privateKey string) error {
+	block, _ := pem.Decode([]byte(publicKey))
+	if block == nil {
+		return errors.New("public key error")
+	}
+	pubInterface, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return err
+	}
+	pub := pubInterface.(*rsa.PublicKey)
+
+	block, _ = pem.Decode([]byte(privateKey))
+	if block == nil {
+		return errors.New("private key error")
+	}
+	priv, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return err
+	}
+
+	pri, ok := priv.(*rsa.PrivateKey)
+	if !ok {
+		return errors.New("private key not supported")
+	}
+
+	XRSA = &xRsa{
+		publicKey:  pub,
+		privateKey: pri,
+	}
+	return nil
+}
+
+func (r *xRsa) PublicEncrypt(data string) (string, error) {
+	partLen := r.publicKey.N.BitLen()/8 - 11
+	chunks := split([]byte(data), partLen)
+
+	buffer := bytes.NewBufferString("")
+	for _, chunk := range chunks {
+		bts, err := rsa.EncryptPKCS1v15(rand.Reader, r.publicKey, chunk)
+		if err != nil {
+			return "", err
+		}
+		buffer.Write(bts)
+	}
+
+	// return base64.RawURLEncoding.EncodeToString(buffer.Bytes()), nil
+	return base64.StdEncoding.EncodeToString(buffer.Bytes()), nil
+}
+
+func (r *xRsa) PrivateDecrypt(encrypted string) (string, error) {
+	partLen := r.publicKey.N.BitLen() / 8
+	// raw, err := base64.RawURLEncoding.DecodeString(encrypted)
+	raw, err := base64.StdEncoding.DecodeString(encrypted)
+	chunks := split([]byte(raw), partLen)
+
+	buffer := bytes.NewBufferString("")
+	for _, chunk := range chunks {
+		decrypted, err := rsa.DecryptPKCS1v15(rand.Reader, r.privateKey, chunk)
+		if err != nil {
+			return "", err
+		}
+		buffer.Write(decrypted)
+	}
+
+	return buffer.String(), err
+}
+
+func (r *xRsa) PrivateEncrypt(data string) (string, error) {
+	partLen := r.publicKey.N.BitLen()/8 - 11
+	chunks := split([]byte(data), partLen)
+
+	buffer := bytes.NewBufferString("")
+	for _, chunk := range chunks {
+		bts, err := PrivateEncrypt(r.privateKey, chunk)
+		if err != nil {
+			return "", err
+		}
+
+		buffer.Write(bts)
+	}
+
+	// return base64.RawURLEncoding.EncodeToString(buffer.Bytes()), nil
+	return base64.StdEncoding.EncodeToString(buffer.Bytes()), nil
+}
+
+func (r *xRsa) PublicDecrypt(encrypted string) (string, error) {
+	partLen := r.publicKey.N.BitLen() / 8
+	// raw, err := base64.RawURLEncoding.DecodeString(encrypted)
+	raw, err := base64.StdEncoding.DecodeString(encrypted)
+	chunks := split([]byte(raw), partLen)
+
+	buffer := bytes.NewBufferString("")
+	for _, chunk := range chunks {
+		decrypted, err := PublicDecrypt(r.publicKey, chunk)
+
+		if err != nil {
+			return "", err
+		}
+		buffer.Write(decrypted)
+	}
+
+	return buffer.String(), err
+}
+
+func (r *xRsa) Sign(data string) (string, error) {
+	h := RSA_ALGORITHM_SIGN.New()
+	h.Write([]byte(data))
+	hashed := h.Sum(nil)
+
+	sign, err := rsa.SignPKCS1v15(rand.Reader, r.privateKey, RSA_ALGORITHM_SIGN, hashed)
+	if err != nil {
+		return "", err
+	}
+	// return base64.RawURLEncoding.EncodeToString(sign), err
+	return base64.StdEncoding.EncodeToString(sign), err
+}
+
+func (r *xRsa) Verify(data string, sign string) error {
+	h := RSA_ALGORITHM_SIGN.New()
+	h.Write([]byte(data))
+	hashed := h.Sum(nil)
+
+	// decodedSign, err := base64.RawURLEncoding.DecodeString(sign)
+	decodedSign, err := base64.StdEncoding.DecodeString(sign)
+	if err != nil {
+		return err
+	}
+
+	return rsa.VerifyPKCS1v15(r.publicKey, RSA_ALGORITHM_SIGN, hashed, decodedSign)
+}
+
+func split(buf []byte, lim int) [][]byte {
+	var chunk []byte
+	chunks := make([][]byte, 0, len(buf)/lim+1)
+	for len(buf) >= lim {
+		chunk, buf = buf[:lim], buf[lim:]
+		chunks = append(chunks, chunk)
+	}
+	if len(buf) > 0 {
+		chunks = append(chunks, buf[:])
+	}
+	return chunks
+}
+
+func CreateRSAKeys(publicKeyWriter, privateKeyWriter io.Writer, keyLength int) error {
 	// 生成私钥文件
 	privateKey, err := rsa.GenerateKey(rand.Reader, keyLength)
 	if err != nil {
@@ -60,147 +215,4 @@ func CreateKeys(publicKeyWriter, privateKeyWriter io.Writer, keyLength int) erro
 	}
 
 	return nil
-}
-
-func NewXRsa(publicKey []byte, privateKey []byte) (*XRsa, error) {
-	block, _ := pem.Decode(publicKey)
-	if block == nil {
-		return nil, errors.New("public key error")
-	}
-	pubInterface, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
-		return nil, err
-	}
-	pub := pubInterface.(*rsa.PublicKey)
-
-	block, _ = pem.Decode(privateKey)
-	if block == nil {
-		return nil, errors.New("private key error")
-	}
-	priv, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-	if err != nil {
-		return nil, err
-	}
-
-	pri, ok := priv.(*rsa.PrivateKey)
-	if ok {
-		return &XRsa{
-			publicKey:  pub,
-			privateKey: pri,
-		}, nil
-	} else {
-		return nil, errors.New("private key not supported")
-	}
-}
-
-func (r *XRsa) PublicEncrypt(data string) (string, error) {
-	partLen := r.publicKey.N.BitLen()/8 - 11
-	chunks := split([]byte(data), partLen)
-
-	buffer := bytes.NewBufferString("")
-	for _, chunk := range chunks {
-		bts, err := rsa.EncryptPKCS1v15(rand.Reader, r.publicKey, chunk)
-		if err != nil {
-			return "", err
-		}
-		buffer.Write(bts)
-	}
-
-	// return base64.RawURLEncoding.EncodeToString(buffer.Bytes()), nil
-	return base64.StdEncoding.EncodeToString(buffer.Bytes()), nil
-}
-
-func (r *XRsa) PrivateDecrypt(encrypted string) (string, error) {
-	partLen := r.publicKey.N.BitLen() / 8
-	// raw, err := base64.RawURLEncoding.DecodeString(encrypted)
-	raw, err := base64.StdEncoding.DecodeString(encrypted)
-	chunks := split([]byte(raw), partLen)
-
-	buffer := bytes.NewBufferString("")
-	for _, chunk := range chunks {
-		decrypted, err := rsa.DecryptPKCS1v15(rand.Reader, r.privateKey, chunk)
-		if err != nil {
-			return "", err
-		}
-		buffer.Write(decrypted)
-	}
-
-	return buffer.String(), err
-}
-
-func (r *XRsa) PrivateEncrypt(data string) (string, error) {
-	partLen := r.publicKey.N.BitLen()/8 - 11
-	chunks := split([]byte(data), partLen)
-
-	buffer := bytes.NewBufferString("")
-	for _, chunk := range chunks {
-		bts, err := PrivateEncrypt(r.privateKey, chunk)
-		if err != nil {
-			return "", err
-		}
-
-		buffer.Write(bts)
-	}
-
-	// return base64.RawURLEncoding.EncodeToString(buffer.Bytes()), nil
-	return base64.StdEncoding.EncodeToString(buffer.Bytes()), nil
-}
-
-func (r *XRsa) PublicDecrypt(encrypted string) (string, error) {
-	partLen := r.publicKey.N.BitLen() / 8
-	// raw, err := base64.RawURLEncoding.DecodeString(encrypted)
-	raw, err := base64.StdEncoding.DecodeString(encrypted)
-	chunks := split([]byte(raw), partLen)
-
-	buffer := bytes.NewBufferString("")
-	for _, chunk := range chunks {
-		decrypted, err := PublicDecrypt(r.publicKey, chunk)
-
-		if err != nil {
-			return "", err
-		}
-		buffer.Write(decrypted)
-	}
-
-	return buffer.String(), err
-}
-
-func (r *XRsa) Sign(data string) (string, error) {
-	h := RSA_ALGORITHM_SIGN.New()
-	h.Write([]byte(data))
-	hashed := h.Sum(nil)
-
-	sign, err := rsa.SignPKCS1v15(rand.Reader, r.privateKey, RSA_ALGORITHM_SIGN, hashed)
-	if err != nil {
-		return "", err
-	}
-	// return base64.RawURLEncoding.EncodeToString(sign), err
-	return base64.StdEncoding.EncodeToString(sign), err
-}
-
-func (r *XRsa) Verify(data string, sign string) error {
-	h := RSA_ALGORITHM_SIGN.New()
-	h.Write([]byte(data))
-	hashed := h.Sum(nil)
-
-	// decodedSign, err := base64.RawURLEncoding.DecodeString(sign)
-	decodedSign, err := base64.StdEncoding.DecodeString(sign)
-	if err != nil {
-		return err
-	}
-
-	return rsa.VerifyPKCS1v15(r.publicKey, RSA_ALGORITHM_SIGN, hashed, decodedSign)
-}
-
-func split(buf []byte, lim int) [][]byte {
-	var chunk []byte
-	chunks := make([][]byte, 0, len(buf)/lim+1)
-	for len(buf) >= lim {
-		chunk, buf = buf[:lim], buf[lim:]
-		chunks = append(chunks, chunk)
-	}
-	if len(buf) > 0 {
-		chunks = append(chunks, buf[:])
-	}
-	return chunks
 }
