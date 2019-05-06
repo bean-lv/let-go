@@ -4,9 +4,8 @@ import "net/http"
 
 type Context interface {
 	Request() *http.Request
-	SetRequest(*http.Request)
 	Response() http.ResponseWriter
-	SetResponse(http.ResponseWriter)
+	Reset(rw http.ResponseWriter, req *http.Request)
 }
 
 type myContext struct {
@@ -22,14 +21,11 @@ func (ctx *myContext) Request() *http.Request {
 	return ctx.request
 }
 
-func (ctx *myContext) SetRequest(request *http.Request) {
-	ctx.request = request
-}
-
 func (ctx *myContext) Response() http.ResponseWriter {
 	return ctx.responseWriter
 }
 
-func (ctx *myContext) SetResponse(response http.ResponseWriter) {
-	ctx.responseWriter = response
+func (ctx *myContext) Reset(rw http.ResponseWriter, req *http.Request) {
+	ctx.responseWriter = rw
+	ctx.request = req
 }
